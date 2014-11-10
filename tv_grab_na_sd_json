@@ -110,7 +110,7 @@ my $sd_json_api = '/20140530/';
 my $sd_json_token;
 my $sd_json_status;
 my $sd_json_days;
-my @sd_json_days_valid = ( 2, 4, 14 );
+my @sd_json_days_valid = ( 2, 4, 13 );
 
 my $ua = LWP::UserAgent->new(agent => "$grabber_name $grabber_version");
 $ua->default_header('accept-encoding' => scalar HTTP::Message::decodable());
