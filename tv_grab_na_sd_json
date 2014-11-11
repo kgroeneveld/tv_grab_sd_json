@@ -111,6 +111,7 @@ my $sd_json_token;
 my $sd_json_status;
 my $sd_json_days;
 my @sd_json_days_valid = ( 2, 4, 13 );
+my $sd_json_request_max = 5000;
 
 my $ua = LWP::UserAgent->new(agent => "$grabber_name $grabber_version");
 $ua->default_header('accept-encoding' => scalar HTTP::Message::decodable());
@@ -525,10 +526,10 @@ sub cache_update_schedules {
 	}
 
 	# update schedules
-	if(scalar @channels_update) {
-		my $schedules = sd_json_get_schedules(\@channels_update);
+	while(my @block = splice(@channels_update, 0, $sd_json_request_max)) {
+		my $schedules = sd_json_get_schedules(\@block);
 
-		for my $channel (@channels_update) {
+		for my $channel (@block) {
 			$cache_schedules->{$channel} = shift @{$schedules};
 			$cache_schedules->{$channel}->{'accessed'} = $now;
 		}
@@ -563,10 +564,10 @@ sub cache_update_schedules {
 
 	# update programs
 	my @programs_update = keys %programs_update_hash;
-	if(scalar @programs_update) {
-		my $programs = sd_json_get_programs(\@programs_update);
+	while(my @block = splice(@programs_update, 0, $sd_json_request_max)) {
+		my $programs = sd_json_get_programs(\@block);
 
-		for my $id (@programs_update) {
+		for my $id (@block) {
 			$cache_programs->{$id} = shift @{$programs};
 			$cache_programs->{$id}->{'accessed'} = $now;
 		}
