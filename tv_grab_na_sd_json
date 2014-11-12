@@ -275,6 +275,22 @@ sub sd_json_init {
 	}
 }
 
+sub get_lineup_description {
+	my ($lineup) = @_;
+
+	my $location = $lineup->{'location'} // 'unknown';
+	my $type     = $lineup->{'type'}     // 'unknown';
+	my $name     = $lineup->{'name'}     // 'unknown';
+	my ($id)     = $lineup->{'uri'} =~ m{.*/(.*)};
+
+	if($type eq 'QAM') {
+		return "$type | $id";
+	}
+	else {
+		return "$location | $type | $name | $id";
+	}
+}
+
 sub config_stage {
 	my ($stage, $conf) = @_;
 
@@ -345,8 +361,8 @@ sub config_stage {
 
 			for my $lineup (@{$lineups}) {
 				$count++;
-				my ($id) = $lineup->{'uri'} =~ m{.*/(.*)};
-				say("$count. $lineup->{'location'} | $lineup->{'type'} | $lineup->{'name'} | $id");
+				my $desc = get_lineup_description($lineup);
+				say("$count. $desc");
 			}
 			if(!$count) {
 				say('(none)');
