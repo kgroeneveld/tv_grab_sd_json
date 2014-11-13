@@ -756,15 +756,19 @@ sub get_program_credits {
 
 sub get_program_date {
 	my ($details) = @_;
-	my $date = $details->{'originalAirDate'};
 
+	my $year = $details->{'movie'}->{'year'};
+	if($year) {
+		return $year;
+	}
+
+	my $date = $details->{'originalAirDate'};
 	if($date) {
 		my $dt = DateTime::Format::ISO8601->parse_datetime($date);
 		return $dt->strftime('%Y%m%d');
 	}
-	else {
-		return undef;
-	}
+
+	return undef;
 }
 
 sub get_program_category {
@@ -777,6 +781,18 @@ sub get_program_category {
 
 	if(scalar @result) {
 		return \@result;
+	}
+	else {
+		return undef;
+	}
+}
+
+sub get_program_length {
+	my ($details) = @_;
+	my $duration = $details->{'movie'}->{'duration'};
+
+	if($duration) {
+		return $duration;
 	}
 	else {
 		return undef;
@@ -813,6 +829,18 @@ sub get_program_video {
 	}
 }
 
+sub get_program_star_rating {
+	my ($details) = @_;
+	my $rating = $details->{'movie'}->{'qualityRating'}->[0];
+
+	if($rating) {
+		return [ [ "$rating->{'rating'}/$rating->{'maxRating'}", $rating->{'ratingsBody'} ] ];
+	}
+	else {
+		return undef;
+	}
+}
+
 sub write_programme {
 	my ($w, $channel, $program, $details) = @_;
 
@@ -836,7 +864,7 @@ sub write_programme {
 #			'keyword'          => undef,
 #			'language'         => undef,
 #			'orig-language'    => undef,
-#			'length'           => undef,
+			'length'           => get_program_length($details),
 #			'icon'             => undef,
 #			'url'              => undef,
 #			'country'          => undef,
@@ -849,7 +877,7 @@ sub write_programme {
 #			'new'              => undef,
 #			'subtitles'        => undef,
 #			'rating'           => undef,
-#			'star-rating'      => undef,
+			'star-rating'      => get_program_star_rating($details),
 #			'review'           => undef,
 		});
 	}
