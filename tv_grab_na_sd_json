@@ -76,6 +76,7 @@ use JSON;
 use Digest::SHA qw(sha1_hex);
 use DateTime::Format::ISO8601;
 use List::MoreUtils qw(uniq);
+use Scalar::Util qw(looks_like_number);
 use Try::Tiny;
 use Data::Dumper;
 
@@ -800,11 +801,43 @@ sub get_program_length {
 }
 
 sub get_program_episode {
-	my ($details) = @_;
-	my $episode = $details->{'metadata'}->[0]->{'Tribune'};
+	my ($program, $details) = @_;
+	my $season ='';
+	my $episode = '';
+	my $part = '';
+	my $data = 0;
 
-	if($episode) {
-		return [ [sprintf('%d.%d.0/1', $episode->{'season'} - 1, $episode->{'episode'} - 1), 'xmltv_ns'] ];
+	my $metadata = $details->{'metadata'}->[0]->{'Tribune'};
+	if($metadata)
+	{
+		my $temp = $metadata->{'season'};
+		if(looks_like_number($temp)) {
+			$season = sprintf('%d', $temp - 1);
+			$data = 1;
+		}
+
+		$temp = $metadata->{'episode'};
+		if(looks_like_number($temp)) {
+			$episode = sprintf('%d', $temp - 1);
+			$data = 1;
+		}
+	}
+
+	my $multipart = $program->{'multipart'};
+	if($multipart) {
+		my $temp = $multipart->{'partNumber'};
+		if(looks_like_number($temp)) {
+			$part = sprintf('%d', $temp - 1);
+			$temp = $multipart->{'totalParts'};
+			if(looks_like_number($temp)) {
+				$part .= sprintf('/%d', $temp - 1);
+			}
+			$data = 1;
+		}
+	}
+
+	if($data) {
+		return [ [ "$season.$episode.$part", 'xmltv_ns' ] ];
 	}
 	else {
 		return undef;
@@ -868,7 +901,7 @@ sub write_programme {
 #			'icon'             => undef,
 #			'url'              => undef,
 #			'country'          => undef,
-			'episode-num'      => get_program_episode($details),
+			'episode-num'      => get_program_episode($program, $details),
 			'video'            => get_program_video($program),
 #			'audio'            => under,
 #			'previously-shown' => undef,
