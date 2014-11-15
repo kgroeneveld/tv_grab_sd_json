@@ -44,7 +44,7 @@ should also specify the config file such as:
     tv_grab_na_sd_json --configure --config-file ~/.mythtv/source_name.xmltv
 
 Doing the XMLTV config from within the MythTV GUI seems very flaky so you
-are probably better of configuring from the command line.
+are probably better off configuring from the command line.
 
 =head1 TODO
 
@@ -467,6 +467,7 @@ my $cache_lineups;
 my $cache_schedules;
 my $cache_programs;
 my %channel_index;
+my %channel_map;
 
 sub cache_load {
 	# attempt to retreive cached data
@@ -614,6 +615,20 @@ sub cache_index {
 		for my $channel (@{$lineup->{'stations'}}) {
 			$channel_index{$channel->{'stationID'}} = $channel;
 		}
+
+		my $qam = $lineup->{'qamMappings'};
+		my $map;
+
+		if($qam) {
+			$map = $lineup->{'map'}->{$qam->[0]};
+		}
+		else {
+			$map = $lineup->{'map'};
+		}
+
+		for my $channel (@{$map}) {
+			$channel_map{$channel->{'stationID'}} = $channel;
+		}
 	}
 }
 
@@ -637,14 +652,39 @@ sub get_channel_list {
 	}
 }
 
+sub get_channel_number {
+	my ($map) = @_;
+
+	if($map->{'virtualChannel'}) {
+		return $map->{'virtualChannel'};
+	}
+	elsif($map->{'atscMajor'}) {
+		return "$map->{'atscMajor'}_$map->{'atscMinor'}";
+	}
+	elsif($map->{'channel'}) {
+		return $map->{'channel'};
+	}
+
+	return undef;
+}
+
 sub write_channel {
-	my ($w, $channel) = @_;
+	my ($w, $channel, $map) = @_;
 
 	my %ch;
+
+	# mythtv seems to assume that the first three display-name elements are
+	# name, callsign and channel number. We follow that scheme here.
 	$ch{'id'} = $channel->{'stationID'};
-	$ch{'display-name'} = [ [ $channel->{'name'}, 'en' ] ];
+	$ch{'display-name'} = [
+		[ $channel->{'name'}       || 'unknown name'     ],
+		[ $channel->{'callsign'}   || 'unknown callsign' ],
+		[ get_channel_number($map) || 'unknown number'   ]
+	];
+
 	my $logo = $channel->{'logo'};
 	$ch{'icon'} = [{ 'src' => $logo->{'URL'} }] if $logo;
+
 	$w->write_channel(\%ch);
 }
 
@@ -1017,7 +1057,7 @@ sub grab_listings {
 
 	# write channels
 	for my $channel (@{$channels}) {
-		write_channel($w, $channel_index{$channel});
+		write_channel($w, $channel_index{$channel}, $channel_map{$channel});
 	}
 
 	# write programs
