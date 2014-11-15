@@ -862,6 +862,28 @@ sub get_program_video {
 	}
 }
 
+sub get_program_premiere {
+	my ($program) = @_;
+	my $premiere = $program->{'isPremiereOrFinale'};
+
+	if(defined $premiere && $premiere =~ /premiere/i) {
+		return [ $premiere ];
+	}
+
+	return undef;
+}
+
+sub get_program_new {
+	my ($program) = @_;
+	my $new = $program->{'new'};
+
+	if(defined $new) {
+		return 1;
+	}
+
+	return undef;
+}
+
 sub get_program_star_rating {
 	my ($details) = @_;
 	my $rating = $details->{'movie'}->{'qualityRating'}->[0];
@@ -905,9 +927,9 @@ sub write_programme {
 			'video'            => get_program_video($program),
 #			'audio'            => under,
 #			'previously-shown' => undef,
-#			'premiere'         => undef,
+			'premiere'         => get_program_premiere($program),
 #			'last-chance'      => undef,
-#			'new'              => undef,
+			'new'              => get_program_new($program),
 #			'subtitles'        => undef,
 #			'rating'           => undef,
 			'star-rating'      => get_program_star_rating($details),
