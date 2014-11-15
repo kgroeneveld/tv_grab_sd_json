@@ -862,6 +862,29 @@ sub get_program_video {
 	}
 }
 
+sub get_program_audio {
+	my ($program) = @_;
+	my %audio;
+
+	for my $item (@{$program->{'audioProperties'}}) {
+		if($item =~ /mono/i) {
+			$audio{'stereo'} = 'mono';
+		}
+		elsif($item =~ /stereo/i) {
+			$audio{'stereo'} = 'stereo';
+		}
+		elsif($item =~ /DD/i) {
+			$audio{'stereo'} = 'dolby digital';
+		}
+	}
+
+	if(scalar keys %audio) {
+		return \%audio;
+	}
+
+	return undef;
+}
+
 sub get_program_premiere {
 	my ($program) = @_;
 	my $premiere = $program->{'isPremiereOrFinale'};
@@ -879,6 +902,16 @@ sub get_program_new {
 
 	if(defined $new) {
 		return 1;
+	}
+
+	return undef;
+}
+
+sub get_program_subtitles {
+	my ($program) = @_;
+
+	if(grep('^cc$', @{$program->{'audioProperties'}})) {
+		return [ { 'type' => 'teletext' } ];
 	}
 
 	return undef;
@@ -948,12 +981,12 @@ sub write_programme {
 #			'country'          => undef,
 			'episode-num'      => get_program_episode($program, $details),
 			'video'            => get_program_video($program),
-#			'audio'            => under,
+			'audio'            => get_program_audio($program),
 #			'previously-shown' => undef,
 			'premiere'         => get_program_premiere($program),
 #			'last-chance'      => undef,
 			'new'              => get_program_new($program),
-#			'subtitles'        => undef,
+			'subtitles'        => get_program_subtitles($program),
 			'rating'           => get_program_rating($program),
 			'star-rating'      => get_program_star_rating($details),
 #			'review'           => undef,
