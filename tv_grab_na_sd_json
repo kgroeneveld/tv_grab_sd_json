@@ -884,6 +884,29 @@ sub get_program_new {
 	return undef;
 }
 
+sub get_program_rating {
+	my ($program) = @_;
+	my $ratings = $program->{'ratings'};
+
+	if(defined $ratings && ref $ratings eq 'ARRAY') {
+		my @result;
+
+		for my $rating (@{$ratings}) {
+			my $code = $rating->{'code'};
+			my $body = $rating->{'body'};
+			if($code) {
+				push(@result, [ $code, $body ]);
+			}
+		}
+
+		if(scalar @result) {
+			return \@result;
+		}
+	}
+
+	return undef;
+}
+
 sub get_program_star_rating {
 	my ($details) = @_;
 	my $rating = $details->{'movie'}->{'qualityRating'}->[0];
@@ -931,7 +954,7 @@ sub write_programme {
 #			'last-chance'      => undef,
 			'new'              => get_program_new($program),
 #			'subtitles'        => undef,
-#			'rating'           => undef,
+			'rating'           => get_program_rating($program),
 			'star-rating'      => get_program_star_rating($details),
 #			'review'           => undef,
 		});
