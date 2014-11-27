@@ -185,7 +185,8 @@ sub sd_json_request {
 	}
 	else {
 		# TODO: do something more useful here...
-		print Dumper($response);
+		print STDERR Dumper($response);
+		return undef;
 	}
 }
 
