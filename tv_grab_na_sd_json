@@ -557,8 +557,8 @@ sub cache_update_schedules {
 	my %programs_update_hash;
 
 	# create list of programs to update
-	while(my ($channel, $schedule) = each %{$cache_schedules}) {
-		for my $program (@{$schedule->{'programs'}}) {
+	for my $channel (@{$channels}) {
+		for my $program (@{$cache_schedules->{$channel}->{'programs'}}) {
 			my $dt = DateTime::Format::ISO8601->parse_datetime($program->{'airDateTime'});
 
 			if($dt >= $dt_start && $dt <= $dt_stop) {
