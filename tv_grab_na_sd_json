@@ -127,6 +127,9 @@ my ($opt, $conf) = ParseOptions({
 	preferredmethod => 'allatonce',
 });
 
+my $debug = $opt->{'debug'};
+my $quiet = $debug ? 0 : $opt->{'quiet'};
+
 # calculate start and stop time from offset and days options
 my $dt_start = DateTime->now();
 $dt_start->add(days => $opt->{'offset'});
@@ -479,7 +482,7 @@ sub cache_load {
 		$cache_programs = $cache->{'programs'} // {};
 	}
 	catch {
-		print STDERR;
+		print STDERR unless $quiet;
 		$cache_lineups = {};
 		$cache_schedules = {};
 		$cache_programs = {};
@@ -492,20 +495,22 @@ sub cache_update_lineups {
 	my $now = DateTime->now()->epoch();
 	my @lineups_update;
 
+	print STDERR "Updating lineups\n" unless $quiet;
+
 	# check for out of date lineups
 	for my $lineup (@{$sd_json_status->{'lineups'}}) {
 		my $id = $lineup->{'ID'};
 		my $metadata = $cache_lineups->{$id}->{'metadata'};
 		if(!defined $metadata) {
-			print STDERR "lineup $id: new\n";
+			print STDERR "lineup $id: new\n" if $debug;
 			push(@lineups_update, $lineup);
 		}
 		elsif($metadata->{'modified'} ne $lineup->{'modified'}) {
-			print STDERR "lineup $id: old\n";
+			print STDERR "lineup $id: old\n" if $debug;
 			push(@lineups_update, $lineup);
 		}
 		else {
-			print STDERR "lineup $id: current\n";
+			print STDERR "lineup $id: current\n" if $debug;
 			$cache_lineups->{$id}->{'accessed'} = $now;
 		}
 	}
@@ -527,19 +532,21 @@ sub cache_update_schedules {
 	my $schedules_md5 = sd_json_get_schedules_md5($channels);
 	my @channels_update;
 
+	print STDERR "Updating schedules\n" unless $quiet;
+
 	# check which schedules are out of date
 	while(my ($channel, $latest) = each %{$schedules_md5}) {
 		my $metadata = $cache_schedules->{$channel}->{'metadata'};
 		if(!defined $metadata) {
-			print STDERR "channel $channel: new\n";
+			print STDERR "channel $channel: new\n" if $debug;
 			push(@channels_update, $channel);
 		}
 		elsif($metadata->{'md5'} ne $latest->[0]->{'md5'}) {
-			print STDERR "channel $channel: old\n";
+			print STDERR "channel $channel: old\n" if $debug;
 			push(@channels_update, $channel);
 		}
 		else {
-			print STDERR "channel $channel: current\n";
+			print STDERR "channel $channel: current\n" if $debug;
 			$cache_schedules->{$channel}->{'accessed'} = $now;
 		}
 	}
@@ -554,6 +561,8 @@ sub cache_update_schedules {
 		}
 	}
 
+	print STDERR "Updating programs\n" unless $quiet;
+
 	my %programs_update_hash;
 
 	# create list of programs to update
@@ -566,15 +575,15 @@ sub cache_update_schedules {
 				my $cached = $cache_programs->{$id};
 
 				if(!defined $cached) {
-					print STDERR "program $id: new\n";
+					print STDERR "program $id: new\n" if $debug;
 					$programs_update_hash{$id} = 1;
 				}
 				elsif($cached->{'md5'} ne $program->{'md5'}) {
-					print STDERR "program $id: old\n";
+					print STDERR "program $id: old\n" if $debug;
 					$programs_update_hash{$id} = 1;
 				}
 				else {
-					print STDERR "program $id: current\n";
+					print STDERR "program $id: current\n" if $debug;
 					$cache_programs->{$id}->{'accessed'} = $now;
 				}
 			}
@@ -596,10 +605,12 @@ sub cache_update_schedules {
 sub cache_drop_old {
 	my $limit = DateTime->now()->subtract(days => 10)->epoch();
 
+	print STDERR "Removing old cache entires\n" unless $quiet;
+
 	for my $hash ($cache_lineups, $cache_schedules, $cache_programs) {
 		while(my ($key, $value) = each %{$hash}) {
 			if(!exists $value->{'accessed'} || $value->{'accessed'} < $limit) {
-				print STDERR "$key: drop\n";
+				print STDERR "$key: drop\n" if $debug;
 				delete $hash->{$key};
 			}
 		}
@@ -1044,6 +1055,7 @@ sub grab_listings {
 	my ($conf) = @_;
 	my $channels;
 
+	print STDERR "Starting session with $sd_json_baseurl\n" unless $quiet;
 	sd_json_init($conf);
 	cache_load();
 	cache_update_lineups();
@@ -1069,6 +1081,7 @@ sub grab_listings {
 	}
 
 	$w->end();
+	print STDERR "Done\n" unless $quiet;
 }
 
 grab_listings($conf);
