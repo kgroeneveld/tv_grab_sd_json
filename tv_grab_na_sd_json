@@ -125,10 +125,16 @@ my ($opt, $conf) = ParseOptions({
 	stage_sub => \&config_stage,
 	listchannels_sub => \&list_channels,
 	preferredmethod => 'allatonce',
+	defaults => { days => -1 },
 });
 
 my $debug = $opt->{'debug'};
 my $quiet = $debug ? 0 : $opt->{'quiet'};
+
+# default days to value in config file
+if($opt->{'days'} < 0) {
+	$opt->{'days'} = $conf->{'days'}->[0];
+}
 
 # calculate start and stop time from offset and days options
 my $dt_start = DateTime->now();
