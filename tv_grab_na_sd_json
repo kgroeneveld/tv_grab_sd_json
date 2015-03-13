@@ -106,6 +106,8 @@ my %tv_attributes = (
 	'generator-info-name' => "$grabber_name $grabber_version",
 );
 
+my $channel_id_domain = '.json.schedulesdirect.org';
+
 my $sd_json_baseurl = 'https://json.schedulesdirect.org';
 my $sd_json_api = '/20140530/';
 my $sd_json_token;
@@ -693,7 +695,7 @@ sub write_channel {
 
 	# mythtv seems to assume that the first three display-name elements are
 	# name, callsign and channel number. We follow that scheme here.
-	$ch{'id'} = $channel->{'stationID'};
+	$ch{'id'} = $channel->{'stationID'} . $channel_id_domain;
 	$ch{'display-name'} = [
 		[ $channel->{'name'}       || 'unknown name'     ],
 		[ $channel->{'callsign'}   || 'unknown callsign' ],
@@ -709,6 +711,9 @@ sub write_channel {
 # this is used by the last stage of --configure
 sub list_channels {
 	my ($conf, $opt) = @_;
+
+	# don't use channel id domain in configuration files
+	$channel_id_domain = '';
 
 	my $result;
 	my $w = new XMLTV::Writer(OUTPUT => \$result, %w_args);
@@ -1026,7 +1031,7 @@ sub write_programme {
 		my $stop = $dt->strftime('%Y%m%d%H%M%S %z');
 
 		$w->write_programme({
-			'channel'          => $channel,
+			'channel'          => $channel . $channel_id_domain,
 			'start'            => $start,
 			'stop'             => $stop,
 			'title'            => get_program_title($details),
