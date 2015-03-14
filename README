@@ -1,18 +1,18 @@
-tv_grab_na_sd_json is an XMLTV grabber for the Schedules Direct
+tv_grab_sd_json is an XMLTV grabber for the Schedules Direct
 (http://www.schedulesdirect.org) JSON API.
 
 Installation:
 1. Install XMLTV (http://wiki.xmltv.org/index.php/XMLTVProject)
 2. Install other dependencies (see below)
-3. Put tv_grab_na_sd_json in your path (such as /usr/local/bin)
+3. Put tv_grab_sd_json in your path (such as /usr/local/bin)
 
 Usage:
-Minimal usage instructions are near the top of the tv_grab_na_sd_json file.
+Minimal usage instructions are near the top of the tv_grab_sd_json file.
 
 Dependencies:
 
 In addition to the XMLTV libaries, the following perl libraries are required by
-tv_grab_na_sd_json:
+tv_grab_sd_json:
 
   DateTime::Format::ISO8601
   Digest::SHA
