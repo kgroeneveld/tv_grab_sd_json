@@ -388,9 +388,8 @@ sub config_stage {
 			$edit = ask_choice('Edit account lineups', $options[0], @options);
 
 			if($edit eq 'add') {
-				my @countries = ('USA', 'CAN');
-				my $country = ask_choice('Country', $countries[0], @countries);
-				my $postalcode = ask(($country eq 'CAN') ? 'Postal Code:' : 'Zip Code:');
+				my $country = ask('Country (ISO-3166-1 alpha 3 such as USA or CAN):');
+				my $postalcode = ask(($country eq 'USA') ? 'Zip Code:' : 'Postal Code:');
 				my $headends = sd_json_get_headends($country, $postalcode);
 				my $count = 0;
 				my @uri;
