@@ -30,10 +30,6 @@ tv_grab_sd_json --configure [--config-file FILE]
 This is an XMLTV grabber for the Schedules Direct
 (http://www.schedulesdirect.org) JSON API.
 
-It is still a work in progress. I have performed minimal testing of the
-grabber via MythTV in a virtual machine. It likely has many rough edges and
-may break things. I don't even trust it yet on my production MythTV box.
-
 =head1 CONFIGURATION
 
 Run tv_grab_sd_json with the --configure option to create a config file.
@@ -45,18 +41,6 @@ should also specify the config file such as:
 
 Doing the XMLTV config from within the MythTV GUI seems very flaky so you
 are probably better off configuring from the command line.
-
-=head1 TODO
-
-1. Improve documentation.
-
-2. Handle errors better. Currently very little error checking is performed.
-   If something goes wrong you will likely get a cryptic error and/or perl
-   exception.
-
-3. Parse and include more meta data.
-
-4. Likely many more things...
 
 =head1 AUTHOR
 
@@ -120,6 +104,20 @@ my $sd_json_request_max = 5000;
 my $ua = LWP::UserAgent->new(agent => "$grabber_name $grabber_version");
 $ua->default_header('accept-encoding' => scalar HTTP::Message::decodable());
 
+my $debug;
+my $quiet;
+
+# In general we rely on ParseOptions to parse the command line options. However
+# ParseOptions does not pass the options to stage_sub so we check for some
+# options on our own.
+for my $opt (@ARGV) {
+	$debug = 1 if($opt =~ /--debug/i);
+	$quiet = 1 if($opt =~ /--quiet/i);
+}
+
+$quiet = 0 if $debug;
+$ua->show_progress(1) unless $quiet;
+
 my ($opt, $conf) = ParseOptions({
 	grabber_name => $grabber_name,
 	version => $grabber_cvs_id,
@@ -130,9 +128,6 @@ my ($opt, $conf) = ParseOptions({
 	preferredmethod => 'allatonce',
 	defaults => { days => -1 },
 });
-
-my $debug = $opt->{'debug'};
-my $quiet = $debug ? 0 : $opt->{'quiet'};
 
 # default days to value in config file
 if($opt->{'days'} < 0) {
@@ -196,9 +191,22 @@ sub sd_json_request {
 		}
 	}
 	else {
-		# TODO: do something more useful here...
-		print STDERR Dumper($response);
-		return undef;
+		my $msg = $response->decoded_content();
+
+		if($response->header('content-type') =~ m{application/json}i) {
+			my $error = decode_json($msg);
+
+			# for lineups request don't consider 4102/NO_LINEUPS an error
+			if($path eq 'lineups' && $error->{'code'} == 4102) {
+				return undef;
+			}
+
+			$msg = "Server (ID=$error->{'serverID'} Time=$error->{'datetime'}) returned an error:\n"
+				."$error->{'message'} ($error->{'code'}/$error->{'response'})";
+		}
+
+		print STDERR Dumper($response) if $debug;
+		die $msg, "\n";
 	}
 }
 
@@ -387,34 +395,40 @@ sub config_stage {
 			push(@options, 'delete') if $count;
 			$edit = ask_choice('Edit account lineups', $options[0], @options);
 
-			if($edit eq 'add') {
-				my $country = ask('Country (ISO-3166-1 alpha 3 such as USA or CAN):');
-				my $postalcode = ask(($country eq 'USA') ? 'Zip Code:' : 'Postal Code:');
-				my $headends = sd_json_get_headends($country, $postalcode);
-				my $count = 0;
-				my @uri;
+			try
+			{
+				if($edit eq 'add') {
+					my $country = ask('Country (ISO-3166-1 alpha 3 such as USA or CAN):');
+					my $postalcode = ask(($country eq 'USA') ? 'Zip Code:' : 'Postal Code:');
+					my $headends = sd_json_get_headends($country, $postalcode);
+					my $count = 0;
+					my @uri;
 
-				for my $key (sort keys %{$headends}) {
-					my $headend = $headends->{$key};
-					for my $lineup (@{$headend->{'lineups'}}) {
-						$count++;
-						push(@uri, $lineup->{'uri'});
-						my ($id) = $lineup->{'uri'} =~ m{.*/(.*)};
-						say("$count. $headend->{'location'} | $headend->{'type'} | $lineup->{'name'} | $id");
+					for my $key (sort keys %{$headends}) {
+						my $headend = $headends->{$key};
+						for my $lineup (@{$headend->{'lineups'}}) {
+							$count++;
+							push(@uri, $lineup->{'uri'});
+							my ($id) = $lineup->{'uri'} =~ m{.*/(.*)};
+							say("$count. $headend->{'location'} | $headend->{'type'} | $lineup->{'name'} | $id");
+						}
+					}
+
+					my $add = ask_choice('Add lineup (0 = none)', 0, (0 .. $count));
+					if($add) {
+						sd_json_add_lineup($uri[$add - 1]);
 					}
 				}
-
-				my $add = ask_choice('Add lineup (0 = none)', 0, (0 .. $count));
-				if($add) {
-					sd_json_add_lineup($uri[$add - 1]);
+				elsif($edit eq 'delete') {
+					my $delete = ask_choice('Delete lineup (0 = none)', 0, (0 .. $count));
+					if($delete) {
+						sd_json_delete_lineup($lineups->[$delete - 1]->{'uri'});
+					}
 				}
 			}
-			elsif($edit eq 'delete') {
-				my $delete = ask_choice('Delete lineup (0 = none)', 0, (0 .. $count));
-				if($delete) {
-					sd_json_delete_lineup($lineups->[$delete - 1]->{'uri'});
-				}
-			}
+			catch {
+				say($_);
+			};
 		}
 		while($edit ne 'continue');
 
@@ -502,7 +516,7 @@ sub cache_update_lineups {
 	my $now = DateTime->now()->epoch();
 	my @lineups_update;
 
-	print STDERR "Updating lineups\n" unless $quiet;
+	print STDERR "Updating lineups...\n" unless $quiet;
 
 	# check for out of date lineups
 	for my $lineup (@{$sd_json_status->{'lineups'}}) {
@@ -535,11 +549,11 @@ sub cache_update_lineups {
 sub cache_update_schedules {
 	my ($channels) = @_;
 
+	print STDERR "Updating schedules...\n" unless $quiet;
+
 	my $now = DateTime->now()->epoch();
 	my $schedules_md5 = sd_json_get_schedules_md5($channels);
 	my @channels_update;
-
-	print STDERR "Updating schedules\n" unless $quiet;
 
 	# check which schedules are out of date
 	while(my ($channel, $latest) = each %{$schedules_md5}) {
@@ -568,7 +582,7 @@ sub cache_update_schedules {
 		}
 	}
 
-	print STDERR "Updating programs\n" unless $quiet;
+	print STDERR "Updating programs...\n" unless $quiet;
 
 	my %programs_update_hash;
 
@@ -612,7 +626,7 @@ sub cache_update_schedules {
 sub cache_drop_old {
 	my $limit = DateTime->now()->subtract(days => 10)->epoch();
 
-	print STDERR "Removing old cache entires\n" unless $quiet;
+	print STDERR "Removing old cache entires...\n" unless $quiet;
 
 	for my $hash ($cache_lineups, $cache_schedules, $cache_programs) {
 		while(my ($key, $value) = each %{$hash}) {
@@ -1065,7 +1079,7 @@ sub grab_listings {
 	my ($conf) = @_;
 	my $channels;
 
-	print STDERR "Starting session with $sd_json_baseurl\n" unless $quiet;
+	print STDERR "Initializing...\n" unless $quiet;
 	sd_json_init($conf);
 	cache_load();
 	cache_update_lineups();
@@ -1075,6 +1089,7 @@ sub grab_listings {
 	cache_save();
 	cache_index();
 
+	print STDERR "Writing output...\n" unless $quiet;
 	my $w = new XMLTV::Writer(%w_args);
 	$w->start(\%tv_attributes);
 
