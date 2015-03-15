@@ -513,14 +513,17 @@ sub cache_load {
 }
 
 sub cache_update_lineups {
-	my $now = DateTime->now()->epoch();
-	my @lineups_update;
-
 	print STDERR "Updating lineups...\n" unless $quiet;
+
+	my $now = DateTime->now()->epoch();
+	my %lineups_enabled;
+	my @lineups_update;
 
 	# check for out of date lineups
 	for my $lineup (@{$sd_json_status->{'lineups'}}) {
 		my $id = $lineup->{'ID'};
+		$lineups_enabled{$id} = 1;
+
 		my $metadata = $cache_lineups->{$id}->{'metadata'};
 		if(!defined $metadata) {
 			print STDERR "lineup $id: new\n" if $debug;
@@ -534,6 +537,19 @@ sub cache_update_lineups {
 			print STDERR "lineup $id: current\n" if $debug;
 			$cache_lineups->{$id}->{'accessed'} = $now;
 		}
+	}
+
+	# check that configured lineups are actually enabled for the account
+	my $lineup_error;
+	for my $lineup (@{$conf->{'lineup'}}) {
+		if(!$lineups_enabled{$lineup}) {
+			$lineup_error = 1;
+			print STDERR "Lineup $lineup in the current configuration is not enabled on your account.\n";
+		}
+	}
+
+	if($lineup_error) {
+		die "Please reconfigure the grabber or your account settings.\n"
 	}
 
 	# update lineups
@@ -1084,6 +1100,11 @@ sub grab_listings {
 	cache_load();
 	cache_update_lineups();
 	$channels = get_channel_list($conf);
+
+	if(!@{$channels}) {
+		die "No lineups or channels configured.\n";
+	}
+
 	cache_update_schedules($channels);
 	cache_drop_old();
 	cache_save();
