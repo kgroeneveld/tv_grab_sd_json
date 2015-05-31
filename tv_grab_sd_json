@@ -93,12 +93,12 @@ my %tv_attributes = (
 # the following format matchs the tv_grab_na_dd grabber for easier migration
 my $channel_id_format = 'I%s.labs.zap2it.com';
 
+my $cache_schema = 1;
+
 my $sd_json_baseurl = 'https://json.schedulesdirect.org';
-my $sd_json_api = '/20140530/';
+my $sd_json_api = '/20141201/';
 my $sd_json_token;
 my $sd_json_status;
-my $sd_json_days;
-my @sd_json_days_valid = ( 2, 4, 13 );
 my $sd_json_request_max = 5000;
 
 my $ua = LWP::UserAgent->new(agent => "$grabber_name $grabber_version");
@@ -129,13 +129,14 @@ my ($opt, $conf) = ParseOptions({
 	defaults => { days => -1 },
 });
 
-# default days to value in config file
+# default days to largish value
 if($opt->{'days'} < 0) {
-	$opt->{'days'} = $conf->{'days'}->[0];
+	$opt->{'days'} = 100;
 }
 
 # calculate start and stop time from offset and days options
 my $dt_start = DateTime->now();
+my $today = $dt_start->strftime('%Y-%m-%d');
 $dt_start->add(days => $opt->{'offset'});
 my $dt_stop = $dt_start->clone();
 $dt_stop->add(days => $opt->{'days'});
@@ -147,20 +148,6 @@ $dt_start->add(minutes => -15);
 $dt_stop->add(minutes => 15);
 
 my $cache_file = $conf->{'cache'}->[0];
-
-# get days and ensure valid value
-$sd_json_days = $conf->{'days'}->[0];
-if($sd_json_days >= $sd_json_days_valid[-1]) {
-	$sd_json_days = $sd_json_days_valid[-1];
-}
-else {
-	for my $days (@sd_json_days_valid) {
-		if($sd_json_days <= $days) {
-			$sd_json_days = $days;
-			last;
-		}
-	}
-}
 
 sub sd_json_request {
 	my ($method, $path, $content) = @_;
@@ -180,15 +167,7 @@ sub sd_json_request {
 
 	my $response = $ua->$method($url, @params);
 	if($response->is_success()) {
-		my @lines = split("\n", $response->decoded_content());
-		my $count = @lines;
-		if($count > 1) {
-			my @array = map(decode_json($_), @lines);
-			return \@array;
-		}
-		elsif($count) {
-			return decode_json($lines[0]);
-		}
+		return decode_json($response->decoded_content());
 	}
 	else {
 		my $msg = $response->decoded_content();
@@ -247,38 +226,19 @@ sub sd_json_get_schedules_md5 {
 	my ($channels) = @_;
 	my @stations;
 	for my $channel (@{$channels}) {
-		push(@stations, { stationID => $channel, days => $sd_json_days });
+		push(@stations, { stationID => $channel });
 	}
 	return sd_json_request('post', 'schedules/md5', \@stations);
 }
 
 sub sd_json_get_schedules {
-	my ($channels) = @_;
-	my @stations;
-
-	for my $channel (@{$channels}) {
-		push(@stations, { stationID => $channel, days => $sd_json_days });
-	}
-
-	my $response = sd_json_request('post', 'schedules', \@stations);
-	if(ref $response eq 'ARRAY') {
-		return $response;
-	}
-	else {
-		return [ $response ];
-	}
+	my ($schedules) = @_;
+	return sd_json_request('post', 'schedules', $schedules);
 }
 
 sub sd_json_get_programs {
 	my ($programs) = @_;
-
-	my $response = sd_json_request('post', 'programs', $programs);
-	if(ref $response eq 'ARRAY') {
-		return $response;
-	}
-	else {
-		return [ $response ];
-	}
+	return sd_json_request('post', 'programs', $programs);
 }
 
 sub sd_json_init {
@@ -300,9 +260,9 @@ sub sd_json_init {
 sub get_lineup_description {
 	my ($lineup) = @_;
 
-	my $location = $lineup->{'location'} // 'unknown';
-	my $type     = $lineup->{'type'}     // 'unknown';
-	my $name     = $lineup->{'name'}     // 'unknown';
+	my $location = $lineup->{'location'}  // 'unknown';
+	my $type     = $lineup->{'transport'} // 'unknown';
+	my $name     = $lineup->{'name'}      // 'unknown';
 	my ($id)     = $lineup->{'uri'} =~ m{.*/(.*)};
 
 	if($type eq 'QAM') {
@@ -331,18 +291,6 @@ sub config_stage {
 			title => [ [ 'Cache file', 'en' ] ],
 			default => my_home() . "/.xmltv/$grabber_name.cache",
 		});
-
-		$w->start_selectone({
-			id => 'days',
-			description => [ [ 'Select the maximum number of days you want to grab and cache data for.', 'en' ] ],
-			title => [ [ 'Max days', 'en' ] ],
-		});
-		for my $days (@sd_json_days_valid) {
-			$w->write_option({
-				value => $days,
-				text  => [ [ $days, 'en' ] ],
-			});
-		}
 		$w->end_selectone();
 
 		$w->end('login');
@@ -404,13 +352,12 @@ sub config_stage {
 					my $count = 0;
 					my @uri;
 
-					for my $key (sort keys %{$headends}) {
-						my $headend = $headends->{$key};
+					for my $headend (@{$headends}) {
 						for my $lineup (@{$headend->{'lineups'}}) {
 							$count++;
 							push(@uri, $lineup->{'uri'});
 							my ($id) = $lineup->{'uri'} =~ m{.*/(.*)};
-							say("$count. $headend->{'location'} | $headend->{'type'} | $lineup->{'name'} | $id");
+							say("$count. $headend->{'location'} | $headend->{'transport'} | $lineup->{'name'} | $id");
 						}
 					}
 
@@ -498,9 +445,14 @@ sub cache_load {
 	# attempt to retreive cached data
 	try {
 		$cache = retrieve($cache_file);
-		$cache_lineups = $cache->{'lineups'} // {};
-		$cache_schedules = $cache->{'schedules'} // {};
-		$cache_programs = $cache->{'programs'} // {};
+		if($cache->{'schema'} == $cache_schema) {
+			$cache_lineups = $cache->{'lineups'} // {};
+			$cache_schedules = $cache->{'schedules'} // {};
+			$cache_programs = $cache->{'programs'} // {};
+		}
+		else {
+			die "Ignoring cache file with old schema.";
+		}
 	}
 	catch {
 		print STDERR unless $quiet;
@@ -509,7 +461,7 @@ sub cache_load {
 		$cache_programs = {};
 	};
 
-	$cache = { lineups => $cache_lineups, schedules => $cache_schedules, programs => $cache_programs };
+	$cache = { schema => $cache_schema, lineups => $cache_lineups, schedules => $cache_schedules, programs => $cache_programs };
 }
 
 sub cache_update_lineups {
@@ -521,7 +473,7 @@ sub cache_update_lineups {
 
 	# check for out of date lineups
 	for my $lineup (@{$sd_json_status->{'lineups'}}) {
-		my $id = $lineup->{'ID'};
+		my $id = $lineup->{'lineup'};
 		$lineups_enabled{$id} = 1;
 
 		my $metadata = $cache_lineups->{$id}->{'metadata'};
@@ -554,7 +506,7 @@ sub cache_update_lineups {
 
 	# update lineups
 	for my $lineup (@lineups_update) {
-		my $id = $lineup->{'ID'};
+		my $id = $lineup->{'lineup'};
 		my $uri = $lineup->{'uri'};
 		my $update = sd_json_get_lineup($uri);
 		$cache_lineups->{$id} = $update;
@@ -571,30 +523,34 @@ sub cache_update_schedules {
 	my $schedules_md5 = sd_json_get_schedules_md5($channels);
 	my @channels_update;
 
-	# check which schedules are out of date
-	while(my ($channel, $latest) = each %{$schedules_md5}) {
-		my $metadata = $cache_schedules->{$channel}->{'metadata'};
-		if(!defined $metadata) {
-			print STDERR "channel $channel: new\n" if $debug;
-			push(@channels_update, $channel);
+	while(my ($channel, $schedule) = each %{$schedules_md5}) {
+		my @dates;
+		while(my ($date, $latest) = each %{$schedule}) {
+			my $metadata = $cache_schedules->{$channel}->{$date}->{'metadata'};
+			if(!defined $metadata) {
+				print STDERR "channel $channel $date: new\n" if $debug;
+				push(@dates, $date);
+			}
+			elsif($metadata->{'md5'} ne $latest->{'md5'}) {
+				print STDERR "channel $channel $date: old\n" if $debug;
+				push(@dates, $date);
+			}
+			else {
+				print STDERR "channel $channel $date: current\n" if $debug;
+			}
 		}
-		elsif($metadata->{'md5'} ne $latest->[0]->{'md5'}) {
-			print STDERR "channel $channel: old\n" if $debug;
-			push(@channels_update, $channel);
-		}
-		else {
-			print STDERR "channel $channel: current\n" if $debug;
-			$cache_schedules->{$channel}->{'accessed'} = $now;
+		if(@dates) {
+			push(@channels_update, { stationID => $channel, date => \@dates });
 		}
 	}
 
 	# update schedules
 	while(my @block = splice(@channels_update, 0, $sd_json_request_max)) {
 		my $schedules = sd_json_get_schedules(\@block);
-
-		for my $channel (@block) {
-			$cache_schedules->{$channel} = shift @{$schedules};
-			$cache_schedules->{$channel}->{'accessed'} = $now;
+		for my $schedule (@{$schedules}) {
+			my $channel = $schedule->{'stationID'};
+			my $date = $schedule->{'metadata'}->{'startDate'};
+			$cache_schedules->{$channel}->{$date} = $schedule;
 		}
 	}
 
@@ -604,24 +560,26 @@ sub cache_update_schedules {
 
 	# create list of programs to update
 	for my $channel (@{$channels}) {
-		for my $program (@{$cache_schedules->{$channel}->{'programs'}}) {
-			my $dt = DateTime::Format::ISO8601->parse_datetime($program->{'airDateTime'});
+		for my $schedule (values %{$cache_schedules->{$channel}}) {
+			for my $program (@{$schedule->{'programs'}}) {
+				my $dt = DateTime::Format::ISO8601->parse_datetime($program->{'airDateTime'});
 
-			if($dt >= $dt_start && $dt <= $dt_stop) {
-				my $id = $program->{'programID'};
-				my $cached = $cache_programs->{$id};
+				if($dt >= $dt_start && $dt <= $dt_stop) {
+					my $id = $program->{'programID'};
+					my $cached = $cache_programs->{$id};
 
-				if(!defined $cached) {
-					print STDERR "program $id: new\n" if $debug;
-					$programs_update_hash{$id} = 1;
-				}
-				elsif($cached->{'md5'} ne $program->{'md5'}) {
-					print STDERR "program $id: old\n" if $debug;
-					$programs_update_hash{$id} = 1;
-				}
-				else {
-					print STDERR "program $id: current\n" if $debug;
-					$cache_programs->{$id}->{'accessed'} = $now;
+					if(!defined $cached) {
+						print STDERR "program $id: new\n" if $debug;
+						$programs_update_hash{$id} = 1;
+					}
+					elsif($cached->{'md5'} ne $program->{'md5'}) {
+						print STDERR "program $id: old\n" if $debug;
+						$programs_update_hash{$id} = 1;
+					}
+					else {
+						print STDERR "program $id: current\n" if $debug;
+						$cache_programs->{$id}->{'accessed'} = $now;
+					}
 				}
 			}
 		}
@@ -644,12 +602,28 @@ sub cache_drop_old {
 
 	print STDERR "Removing old cache entires...\n" unless $quiet;
 
-	for my $hash ($cache_lineups, $cache_schedules, $cache_programs) {
+	# remove old lineups and programs
+	for my $hash ($cache_lineups, $cache_programs) {
 		while(my ($key, $value) = each %{$hash}) {
 			if(!exists $value->{'accessed'} || $value->{'accessed'} < $limit) {
 				print STDERR "$key: drop\n" if $debug;
 				delete $hash->{$key};
 			}
+		}
+	}
+
+	# remove old schedules
+	while(my ($channel, $schedules) = each %{$cache_schedules}) {
+		while(my ($date, $schedule) = each %{$schedules}) {
+			if($date lt $today) {
+				print STDERR "$channel $date: drop\n" if $debug;
+				delete $schedules->{$date};
+			}
+		}
+
+		if(scalar keys %{$schedules} == 0) {
+			print STDERR "$channel: drop\n" if $debug;
+			delete $cache_schedules->{$channel};
 		}
 	}
 }
@@ -1121,8 +1095,10 @@ sub grab_listings {
 
 	# write programs
 	for my $channel (@{$channels}) {
-		for my $program (@{$cache_schedules->{$channel}->{'programs'}}) {
-			write_programme($w, $channel, $program, $cache_programs->{$program->{'programID'}});
+		for my $schedule (values %{$cache_schedules->{$channel}}) {
+			for my $program (@{$schedule->{'programs'}}) {
+				write_programme($w, $channel, $program, $cache_programs->{$program->{'programID'}});
+			}
 		}
 	}
 
