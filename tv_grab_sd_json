@@ -873,7 +873,7 @@ sub get_program_episode {
 	my $part = '';
 	my $data = 0;
 
-	my $metadata = $details->{'metadata'}->[0]->{'Tribune'};
+	my $metadata = $details->{'metadata'}->[0]->{'Gracenote'};
 	if($metadata)
 	{
 		my $temp = $metadata->{'season'};
