@@ -804,7 +804,7 @@ sub get_program_credits {
 
 		if($key) {
 			if(exists $credits{$key}) {
-				push($credits{$key}, $name);
+				push(@{$credits{$key}}, $name);
 			}
 			else {
 				$credits{$key} = [ $name ];
