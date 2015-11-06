@@ -523,6 +523,11 @@ sub cache_update_schedules {
 	my @channels_update;
 
 	while(my ($channel, $schedule) = each %{$schedules_md5}) {
+		if(ref $schedule ne 'HASH') {
+			print STDERR "Empty/invalid schedule for channel $channel\n" unless $quiet;
+			next;
+		}
+
 		my @dates;
 		while(my ($date, $latest) = each %{$schedule}) {
 			my $metadata = $cache_schedules->{$channel}->{$date}->{'metadata'};
