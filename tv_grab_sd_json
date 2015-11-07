@@ -257,7 +257,13 @@ sub sd_json_delete_lineup {
 
 sub sd_json_get_lineup {
 	my ($lineup) = @_;
-	return sd_json_request('get', $lineup);
+	retry sub {
+		my $lineup = sd_json_request('get', $lineup);
+		if(ref $lineup ne 'HASH') {
+			die "Invalid lineup response.\n"
+		}
+		return $lineup;
+	}
 }
 
 sub sd_json_get_schedules_md5 {
@@ -480,6 +486,10 @@ sub cache_load {
 	# attempt to retreive cached data
 	try {
 		$cache = retrieve($cache_file);
+		if(ref $cache ne 'HASH') {
+			die "Invalid cache file.\n";
+		}
+
 		if($cache->{'schema'} == $cache_schema) {
 			$cache_lineups = $cache->{'lineups'} // {};
 			$cache_schedules = $cache->{'schedules'} // {};
@@ -508,11 +518,21 @@ sub cache_update_lineups {
 
 	# check for out of date lineups
 	for my $lineup (@{$sd_json_status->{'lineups'}}) {
+		if(ref $lineup ne 'HASH') {
+			print STDERR "Invalid lineup in account status.\n" unless $quiet;
+			next;
+		}
+
 		my $id = $lineup->{'lineup'};
+		if(!$id || ref $id) {
+			print STDERR "Invalid lineup in account status.\n" unless $quiet;
+			next;
+		}
+
 		$lineups_enabled{$id} = 1;
 
 		my $metadata = $cache_lineups->{$id}->{'metadata'};
-		if(!defined $metadata) {
+		if(ref $metadata ne 'HASH') {
 			print STDERR "lineup $id: new\n" if $debug;
 			push(@lineups_update, $lineup);
 		}
@@ -543,6 +563,12 @@ sub cache_update_lineups {
 	for my $lineup (@lineups_update) {
 		my $id = $lineup->{'lineup'};
 		my $uri = $lineup->{'uri'};
+
+		if(!$uri || ref $uri) {
+			print STDERR "Invalid lineup URI in account status.\n" unless $quiet;
+			next;
+		}
+
 		my $update = sd_json_get_lineup($uri);
 		$cache_lineups->{$id} = $update;
 		$cache_lineups->{$id}->{'accessed'} = $now;
@@ -560,7 +586,7 @@ sub cache_update_schedules {
 
 	while(my ($channel, $schedule) = each %{$schedules_md5}) {
 		if(ref $schedule ne 'HASH') {
-			print STDERR "Empty/invalid schedule for channel $channel\n" unless $quiet;
+			print STDERR "Invalid schedule for channel $channel\n" unless $quiet;
 			next;
 		}
 
@@ -677,9 +703,14 @@ sub cache_index {
 
 	# create index
 	while(my ($id, $lineup) = each %{$cache_lineups}) {
+		if(ref $lineup ne 'HASH' || ref $lineup->{'stations'} ne 'ARRAY') {
+			print STDERR "Invalid stations array for lineup $id\n" unless $quiet;
+			next;
+		}
+
 		for my $channel (@{$lineup->{'stations'}}) {
 			if(ref $channel ne 'HASH') {
-				print STDERR "Invalid channel in lineup $lineup\n" unless $quiet;
+				print STDERR "Invalid channel in lineup $id\n" unless $quiet;
 				next;
 			}
 			$channel_index{$channel->{'stationID'}} = $channel;
@@ -707,7 +738,16 @@ sub get_channel_list {
 	if($conf->{'mode'}->[0] eq 'lineup') {
 		my %hash;
 		for my $lineup (@{$conf->{'lineup'}}) {
+			if(ref $cache_lineups->{$lineup}->{'stations'} ne 'ARRAY') {
+				print STDERR "Invalid stations array for lineup $lineup\n" unless $quiet;
+				next;
+			}
+
 			for my $channel (@{$cache_lineups->{$lineup}->{'stations'}}) {
+				if(ref $channel ne 'HASH' || !$channel->{'stationID'}) {
+					print STDERR "Invalid channel in lineup $lineup\n" unless $quiet;
+					next;
+				}
 				$hash{$channel->{'stationID'}} = 1;
 			}
 		}
