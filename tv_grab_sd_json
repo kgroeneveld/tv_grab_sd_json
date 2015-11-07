@@ -637,9 +637,15 @@ sub cache_save {
 }
 
 sub cache_index {
+	print STDERR "Indexing data...\n" unless $quiet;
+
 	# create index
 	while(my ($id, $lineup) = each %{$cache_lineups}) {
 		for my $channel (@{$lineup->{'stations'}}) {
+			if(ref $channel ne 'HASH') {
+				print STDERR "Invalid channel in lineup $lineup\n" unless $quiet;
+				next;
+			}
 			$channel_index{$channel->{'stationID'}} = $channel;
 		}
 
