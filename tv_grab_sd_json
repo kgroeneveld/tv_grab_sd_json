@@ -149,6 +149,28 @@ $dt_stop->add(minutes => 15);
 
 my $cache_file = $conf->{'cache'}->[0];
 
+sub retry {
+	my ($action) = @_;
+	my $retry = 3;
+	my $result;
+
+	for(;;) {
+		try {
+			$result = $action->();
+		}
+		catch {
+			if(--$retry) {
+				print STDERR $_, "Retry in 10 seconds...\n" unless $quiet;
+				sleep 10;
+			}
+			else {
+				die $_, "Retry count exceeded.";
+			}
+		};
+		return $result if $result;
+	}
+}
+
 sub sd_json_request {
 	my ($method, $path, $content) = @_;
 
@@ -191,11 +213,27 @@ sub sd_json_request {
 
 sub sd_json_get_token {
 	my ($username, $password) = @_;
-	return sd_json_request('post', 'token', { username => $username, password => $password });
+
+	retry sub {
+		my $response = sd_json_request('post', 'token', { username => $username, password => $password });
+		if(ref $response ne 'HASH' || !exists $response->{'token'}) {
+			die "Invalid token response.\n";
+		}
+		return $response->{'token'};
+	};
 }
 
 sub sd_json_get_status {
-	return sd_json_request('get', 'status');
+	retry sub {
+		my $status = sd_json_request('get', 'status');
+		if(ref $status ne 'HASH' ||
+			ref $status->{'systemStatus'} ne 'ARRAY' || ref $status->{'systemStatus'}->[0] ne 'HASH' ||
+			ref $status->{'account'} ne 'HASH' ||
+			ref $status->{'lineups'} ne 'ARRAY') {
+			die "Invalid status response.\n"
+		}
+		return $status;
+	}
 }
 
 sub sd_json_get_lineups {
@@ -245,14 +283,12 @@ sub sd_json_init {
 	my ($conf) = @_;
 
 	if(!defined $sd_json_status) {
-		my $data = sd_json_get_token($conf->{'username'}->[0], sha1_hex($conf->{'password'}->[0]));
-
-		$sd_json_token = $data->{'token'};
+		$sd_json_token = sd_json_get_token($conf->{'username'}->[0], sha1_hex($conf->{'password'}->[0]));
 		$sd_json_status = sd_json_get_status();
-		my $status = $sd_json_status->{'systemStatus'}->[0]->{'status'};
 
+		my $status = $sd_json_status->{'systemStatus'}->[0]->{'status'};
 		if($status !~ /online/i) {
-			die "Schedules Direct system status: $status";
+			die "Schedules Direct system status: $status\n";
 		}
 	}
 }
@@ -450,7 +486,7 @@ sub cache_load {
 			$cache_programs = $cache->{'programs'} // {};
 		}
 		else {
-			die "Ignoring cache file with old schema.";
+			die "Ignoring cache file with old schema.\n";
 		}
 	}
 	catch {
