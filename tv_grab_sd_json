@@ -548,7 +548,7 @@ sub cache_update_lineups {
 
 	# check that configured lineups are actually enabled for the account
 	my $lineup_error;
-	for my $lineup (@{$conf->{'lineup'}}) {
+	for my $lineup (@{$conf->{'lineup'}}, @{$conf->{'channels'}}) {
 		if(!$lineups_enabled{$lineup}) {
 			$lineup_error = 1;
 			print STDERR "Lineup $lineup in the current configuration is not enabled on your account.\n";
@@ -702,7 +702,8 @@ sub cache_index {
 	print STDERR "Indexing data...\n" unless $quiet;
 
 	# create index
-	while(my ($id, $lineup) = each %{$cache_lineups}) {
+	for my $id (@{$conf->{'lineup'}}, @{$conf->{'channels'}}) {
+		my $lineup = $cache_lineups->{$id};
 		if(ref $lineup ne 'HASH' || ref $lineup->{'stations'} ne 'ARRAY') {
 			print STDERR "Invalid stations array for lineup $id\n" unless $quiet;
 			next;
