@@ -773,6 +773,9 @@ sub get_channel_number {
 	elsif($map->{'channel'}) {
 		return $map->{'channel'};
 	}
+	elsif($map->{'frequencyHz'}) {
+		return $map->{'frequencyHz'};
+	}
 
 	return undef;
 }
