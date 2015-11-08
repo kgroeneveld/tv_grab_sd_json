@@ -488,6 +488,11 @@ my %channel_index;
 my %channel_map;
 
 sub cache_load {
+	sub get_hash {
+		my $hash = $cache->{$_[0]};
+		return (ref $hash eq 'HASH') ? $hash : {};
+	}
+
 	# attempt to retreive cached data
 	try {
 		$cache = retrieve($cache_file);
@@ -496,9 +501,9 @@ sub cache_load {
 		}
 
 		if($cache->{'schema'} == $cache_schema) {
-			$cache_lineups = $cache->{'lineups'} // {};
-			$cache_schedules = $cache->{'schedules'} // {};
-			$cache_programs = $cache->{'programs'} // {};
+			$cache_lineups = get_hash('lineups');
+			$cache_schedules = get_hash('schedules');
+			$cache_programs = get_hash('programs');
 		}
 		else {
 			die "Ignoring cache file with old schema.\n";
@@ -673,28 +678,41 @@ sub cache_drop_old {
 
 	print STDERR "Removing old cache entires...\n" unless $quiet;
 
-	# remove old lineups and programs
-	for my $hash ($cache_lineups, $cache_programs) {
-		while(my ($key, $value) = each %{$hash}) {
-			if(!exists $value->{'accessed'} || $value->{'accessed'} < $limit) {
-				print STDERR "$key: drop\n" if $debug;
-				delete $hash->{$key};
+	while(my ($key, $hash) = each %{$cache}) {
+		if($key eq 'lineups' || $key eq 'programs') {
+			# remove old lineups and programs
+			while(my ($key, $value) = each %{$hash}) {
+				if(ref $value ne 'HASH' || !exists $value->{'accessed'} || $value->{'accessed'} < $limit) {
+					print STDERR "$key: drop\n" if $debug;
+					delete $hash->{$key};
+				}
 			}
 		}
-	}
+		elsif($key eq 'schedules') {
+			# remove old schedules
+			while(my ($channel, $schedules) = each %{$hash}) {
+				if(ref $schedules ne 'HASH') {
+					print STDERR "$channel: drop\n" if $debug;
+					delete $cache_schedules->{$channel};
+					next;
+				}
 
-	# remove old schedules
-	while(my ($channel, $schedules) = each %{$cache_schedules}) {
-		while(my ($date, $schedule) = each %{$schedules}) {
-			if($date lt $today) {
-				print STDERR "$channel $date: drop\n" if $debug;
-				delete $schedules->{$date};
+				while(my ($date, $schedule) = each %{$schedules}) {
+					if($date lt $today) {
+						print STDERR "$channel $date: drop\n" if $debug;
+						delete $schedules->{$date};
+					}
+				}
+
+				if(scalar keys %{$schedules} == 0) {
+					print STDERR "$channel: drop\n" if $debug;
+					delete $cache_schedules->{$channel};
+				}
 			}
 		}
-
-		if(scalar keys %{$schedules} == 0) {
-			print STDERR "$channel: drop\n" if $debug;
-			delete $cache_schedules->{$channel};
+		elsif($key ne 'schema') {
+			# remove unknown keys
+			delete $cache->{$key};
 		}
 	}
 }
