@@ -387,24 +387,29 @@ sub config_stage {
 			try
 			{
 				if($edit eq 'add') {
-					my $country = ask('Country (ISO-3166-1 alpha 3 such as USA or CAN):');
-					my $postalcode = ask(($country eq 'USA') ? 'Zip Code:' : 'Postal Code:');
-					my $headends = sd_json_get_headends($country, $postalcode);
-					my $count = 0;
-					my @uri;
-
-					for my $headend (@{$headends}) {
-						for my $lineup (@{$headend->{'lineups'}}) {
-							$count++;
-							push(@uri, $lineup->{'uri'});
-							my ($id) = $lineup->{'uri'} =~ m{.*/(.*)};
-							say("$count. $headend->{'location'} | $headend->{'transport'} | $lineup->{'name'} | $id");
-						}
+					my $country = ask('Lineup or Country (ISO-3166-1 alpha 3 such as USA or CAN):');
+					if(length($country) > 3) {
+						sd_json_add_lineup("lineups/$country");
 					}
+					else {
+						my $postalcode = ask(($country eq 'USA') ? 'Zip Code:' : 'Postal Code:');
+						my $headends = sd_json_get_headends($country, $postalcode);
+						my $count = 0;
+						my @uri;
 
-					my $add = ask_choice('Add lineup (0 = none)', 0, (0 .. $count));
-					if($add) {
-						sd_json_add_lineup($uri[$add - 1]);
+						for my $headend (@{$headends}) {
+							for my $lineup (@{$headend->{'lineups'}}) {
+								$count++;
+								push(@uri, $lineup->{'uri'});
+								my ($id) = $lineup->{'uri'} =~ m{.*/(.*)};
+								say("$count. $headend->{'location'} | $headend->{'transport'} | $lineup->{'name'} | $id");
+							}
+						}
+
+						my $add = ask_choice('Add lineup (0 = none)', 0, (0 .. $count));
+						if($add) {
+							sd_json_add_lineup($uri[$add - 1]);
+						}
 					}
 				}
 				elsif($edit eq 'delete') {
