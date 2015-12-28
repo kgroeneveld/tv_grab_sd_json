@@ -639,8 +639,9 @@ sub cache_update_schedules {
 		for my $schedule (values %{$cache_schedules->{$channel}}) {
 			for my $program (@{$schedule->{'programs'}}) {
 				my $dt = DateTime::Format::ISO8601->parse_datetime($program->{'airDateTime'});
+				my $dur = DateTime::Duration->new(seconds => $program->{'duration'});
 
-				if($dt >= $dt_start && $dt <= $dt_stop) {
+				if(($dt + $dur) >= $dt_start && $dt <= $dt_stop) {
 					my $id = $program->{'programID'};
 					my $cached = $cache_programs->{$id};
 
@@ -1140,10 +1141,11 @@ sub write_programme {
 	my ($w, $channel, $program, $details) = @_;
 
 	my $dt = DateTime::Format::ISO8601->parse_datetime($program->{'airDateTime'});
+	my $dur = DateTime::Duration->new(seconds => $program->{'duration'});
 
-	if($dt >= $dt_start && $dt <= $dt_stop) {
+	if(($dt + $dur) >= $dt_start && $dt <= $dt_stop) {
 		my $start = $dt->strftime('%Y%m%d%H%M%S %z');
-		$dt->add(seconds => $program->{'duration'});
+		$dt->add_duration($dur);
 		my $stop = $dt->strftime('%Y%m%d%H%M%S %z');
 
 		$w->write_programme({
