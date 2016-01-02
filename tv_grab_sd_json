@@ -1037,7 +1037,7 @@ sub get_program_video {
 
 	for my $item (@{$program->{'videoProperties'}}) {
 		if($item =~ /hdtv/i) {
-			$video{'quality'} = $item;
+			$video{'quality'} = 'HDTV';
 		}
 	}
 
