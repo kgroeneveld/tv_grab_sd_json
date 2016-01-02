@@ -986,6 +986,7 @@ sub get_program_episode {
 	my $episode = '';
 	my $part = '';
 	my $data = 0;
+	my @result;
 
 	my $metadata = $details->{'metadata'}->[0]->{'Gracenote'};
 	if($metadata)
@@ -1017,7 +1018,13 @@ sub get_program_episode {
 	}
 
 	if($data) {
-		return [ [ "$season.$episode.$part", 'xmltv_ns' ] ];
+		push(@result, [ "$season.$episode.$part", 'xmltv_ns' ]);
+	}
+
+	push(@result, [ $program->{'programID'}, 'dd_progid' ]);
+
+	if(scalar @result) {
+		return \@result;
 	}
 	else {
 		return undef;
