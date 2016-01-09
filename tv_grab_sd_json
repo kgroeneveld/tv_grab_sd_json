@@ -90,8 +90,12 @@ my %tv_attributes = (
 	'generator-info-name' => "$grabber_name $grabber_version",
 );
 
-# the following format matchs the tv_grab_na_dd grabber for easier migration
-my $channel_id_format = 'I%s.labs.zap2it.com';
+my @channel_id_formats = (
+	[ 'default', 'I%s.json.schedulesdirect.org', 'Default Format' ],
+	[ 'zap2it',  'I%s.labs.zap2it.com',          'tv_grab_na_dd Format' ],
+	[ 'mythtv',  '%s',                           'MythTV Internal DD Grabber Format' ],
+);
+my $channel_id_format;
 
 my $cache_schema = 1;
 
@@ -128,6 +132,20 @@ my ($opt, $conf) = ParseOptions({
 	preferredmethod => 'allatonce',
 	defaults => { days => -1 },
 });
+
+# set channel_id_format based on config file
+if($conf->{'channel-id-format'}->[0]) {
+	for my $format (@channel_id_formats) {
+		if($format->[0] eq $conf->{'channel-id-format'}->[0]) {
+			$channel_id_format = $format->[1];
+			last;
+		}
+	}
+}
+if(!$channel_id_format) {
+	print STDERR "Valid channel ID format not specified in config, using default.\n" unless $quiet;
+	$channel_id_format = $channel_id_formats[0]->[1];
+}
 
 # default days to largish value
 if($opt->{'days'} < 0) {
@@ -333,6 +351,19 @@ sub config_stage {
 			title => [ [ 'Cache file', 'en' ] ],
 			default => my_home() . "/.xmltv/$grabber_name.cache",
 		});
+
+		$w->start_selectone({
+			id => 'channel-id-format',
+			description => [ [ 'If you are migrating from a different grabber selecting an alternate channel ID format can make the migration easier.', 'en' ] ],
+			title => [ [ 'Select channel ID format', 'en' ] ],
+		});
+		for my $format (@channel_id_formats) {
+			$w->write_option({
+				value => $format->[0],
+				text  => [ [ $format->[2].' (eg: '.sprintf($format->[1], 12345).')', 'en' ] ],
+			});
+		}
+		$w->end_selectone();
 
 		$w->end('login');
 	}
