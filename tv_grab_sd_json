@@ -985,10 +985,35 @@ sub get_program_date {
 
 sub get_program_category {
 	my ($details) = @_;
+	my %seen;
 	my @result;
 
-	for my $category (@{$details->{'genres'}}) {
-		push(@result, [ $category ]);
+	sub add {
+		my ($result, $category, $seen) = @_;
+		if($category && !exists $seen->{$category}) {
+			$seen->{$category} = 1;
+			push(@{$result}, [ $category ]);
+		}
+	}
+
+	for my $genre (@{$details->{'genres'}}) {
+		add(\@result, $genre, \%seen);
+	}
+	add(\@result, $details->{'showType'}, \%seen);
+
+	# mythtv specifically looks for movie|series|sports|tvshow
+	my $entity_type = $details->{'entityType'};
+	if($entity_type =~ /movie/i) {
+		add(\@result, 'movie', \%seen);
+	}
+	elsif($entity_type =~ /episode/i) {
+		add(\@result, 'series', \%seen);
+	}
+	elsif($entity_type =~ /sports/i) {
+		add(\@result, 'sports', \%seen);
+	}
+	else {
+		add(\@result, 'tvshow', \%seen);
 	}
 
 	if(scalar @result) {
