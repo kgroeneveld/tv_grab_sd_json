@@ -1036,6 +1036,17 @@ sub get_program_length {
 	}
 }
 
+sub get_program_url {
+	my ($details) = @_;
+
+	my $url = $details->{'officialURL'};
+	if($url) {
+		return [ $url ];
+	}
+
+	return undef;
+}
+
 sub get_program_episode {
 	my ($program, $details) = @_;
 	my $season ='';
@@ -1226,7 +1237,7 @@ sub write_programme {
 #			'orig-language'    => undef,
 			'length'           => get_program_length($details),
 #			'icon'             => undef,
-#			'url'              => undef,
+			'url'              => get_program_url($details),
 #			'country'          => undef,
 			'episode-num'      => get_program_episode($program, $details),
 			'video'            => get_program_video($program),
