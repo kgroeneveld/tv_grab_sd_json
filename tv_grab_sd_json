@@ -524,6 +524,14 @@ sub cache_load {
 		return (ref $hash eq 'HASH') ? $hash : {};
 	}
 
+	# make sure the cache file is readable and writable
+	if(open(my $fh, '+>>', $cache_file)) {
+		close($fh);
+	}
+	else {
+		die "Cannot open $cache_file for read/write.\n";
+	}
+
 	# attempt to retreive cached data
 	try {
 		$cache = retrieve($cache_file);
@@ -1278,8 +1286,8 @@ sub grab_listings {
 	my $channels;
 
 	print STDERR "Initializing...\n" unless $quiet;
-	sd_json_init($conf);
 	cache_load();
+	sd_json_init($conf);
 	cache_update_lineups();
 	$channels = get_channel_list($conf);
 
