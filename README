@@ -1,6 +1,10 @@
 tv_grab_sd_json is an XMLTV grabber for the Schedules Direct
 (http://www.schedulesdirect.org) JSON API.
 
+NOTE: This grabber is now included in the official XMLTV project (currently
+still only in CVS and not an actual release). The XMLTV version of this
+grabber may have fixes missing here (and vice versa).
+
 Installation:
 1. Install XMLTV (http://wiki.xmltv.org/index.php/XMLTVProject)
 2. Install other dependencies (see below)
