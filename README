@@ -14,15 +14,15 @@ Dependencies:
 In addition to the XMLTV libaries, the following perl libraries are required by
 tv_grab_sd_json:
 
+  Cwd
   DateTime::Format::ISO8601
   Digest::SHA
-  File::HomeDir
   JSON
   List::MoreUtils
   LWP::UserAgent
+  Scalar::Util
   Storable
   Try::Tiny
 
 On Ubuntu all of these can be installed by installed the following packages:
   xmltv
-  libfile-homedir-perl
