@@ -4,7 +4,7 @@ my $grabber_cvs_id = '$Id: foo $';
 
 =head1 NAME
 
-tv_grab_sd_json - Grab TV listings from Schedules Direct.
+tv_grab_sd_json - Grab TV listings from Schedules Direct SD-JSON service.
 
 =head1 SYNOPSIS
 
