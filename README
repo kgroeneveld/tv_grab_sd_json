@@ -19,7 +19,7 @@ In addition to the XMLTV libaries, the following perl libraries are required by
 tv_grab_sd_json:
 
   Cwd
-  DateTime::Format::ISO8601
+  DateTime::Format::DateParse
   Digest::SHA
   JSON
   List::MoreUtils
@@ -28,5 +28,5 @@ tv_grab_sd_json:
   Storable
   Try::Tiny
 
-On Ubuntu all of these can be installed by installed the following packages:
+On Ubuntu most of these can be installed by installed the following packages:
   xmltv
