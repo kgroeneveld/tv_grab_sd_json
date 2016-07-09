@@ -19,7 +19,7 @@ In addition to the XMLTV libaries, the following perl libraries are required by
 tv_grab_sd_json:
 
   Cwd
-  DateTime::Format::DateParse
+  DateTime
   Digest::SHA
   JSON
   List::MoreUtils
