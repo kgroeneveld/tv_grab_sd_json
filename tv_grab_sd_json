@@ -91,14 +91,19 @@ my %tv_attributes = (
 );
 
 my @channel_id_formats = (
-	[ 'default', 'I%s.json.schedulesdirect.org', 'Default Format' ],
-	[ 'zap2it',  'I%s.labs.zap2it.com',          'tv_grab_na_dd Format' ],
-	[ 'mythtv',  '%s',                           'MythTV Internal DD Grabber Format' ],
+	[ 'default',  'I%s.json.schedulesdirect.org', 'Default Format' ],
+	[ 'zap2it',   'I%s.labs.zap2it.com',          'tv_grab_na_dd Format' ],
+	[ 'mythtv',   '%s',                           'MythTV Internal DD Grabber Format' ],
 );
 
 my @previously_shown_formats = (
 	[ 'date',     '%Y%m%d',          'Date Only' ],
 	[ 'datetime', '%Y%m%d%H%M%S %z', 'Date And Time' ],
+);
+
+my @dd_prog_id_formats = (
+	[ 'default',  '%s%s%s',          'Default Format' ],
+	[ 'tvheadend','%s%s.%s',         'Tvheadend Format' ],
 );
 
 my $cache_schema = 1;
@@ -160,6 +165,7 @@ sub get_conf_format {
 
 my $channel_id_format = get_conf_format('channel-id-format', \@channel_id_formats, 'channel ID format');
 my $previously_shown_format = get_conf_format('previously-shown-format', \@previously_shown_formats, 'previously shown format');
+my $dd_prog_id_format = get_conf_format('dd-prog-id-format', \@dd_prog_id_formats, 'program ID format');
 
 # default days to largish value
 if($opt->{'days'} < 0) {
@@ -498,6 +504,19 @@ sub config_stage {
 			$w->write_option({
 				value => $format->[0],
 				text  => [ [ $format->[2].' (eg: '.sprintf($format->[1], 12345).')', 'en' ] ],
+			});
+		}
+		$w->end_selectone();
+
+		$w->start_selectone({
+			id => 'dd-prog-id-format',
+			description => [ [ 'You can leave the program IDs as default (as received from Schedules Direct), or convert to EID format to allow Tvheadend to use them for series recording.', 'en' ] ],
+			title => [ [ 'Select program ID format', 'en' ] ],
+		});
+		for my $format (@dd_prog_id_formats) {
+			$w->write_option({
+				value => $format->[0],
+				text => [ [ $format->[2], 'en' ] ],
 			});
 		}
 		$w->end_selectone();
@@ -1272,6 +1291,7 @@ sub get_program_episode {
 	my $season = '';
 	my $episode = '';
 	my $part = '';
+	my $progid = '';
 	my @result;
 
 	my $metadata = $details->{'metadata'}->[0]->{'Gracenote'};
@@ -1290,7 +1310,15 @@ sub get_program_episode {
 		push(@result, [ sprintf('%s.%s.%s', $season, $episode, $part), 'xmltv_ns' ]);
 	}
 
-	push(@result, [ $program->{'programID'}, 'dd_progid' ]);
+	# If matches program ID matches format XX000000000000
+	if ($program->{'programID'} =~ /(\w{2})(\d{8})(\d{4})/) {
+		# Reformat program ID to EID format
+		$progid = sprintf($dd_prog_id_format, $1, $2, $3);
+	} else {
+		$progid = $program->{'programID'};
+	}
+
+	push(@result, [ $progid, 'dd_progid' ]);
 
 	return \@result;
 }
