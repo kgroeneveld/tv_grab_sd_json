@@ -1297,9 +1297,19 @@ sub get_program_episode {
 
 sub get_program_video {
 	my ($program) = @_;
-	my %video;
+	my(@items, %video);
 
-	for my $item (@{$program->{'videoProperties'}}) {
+	if (! $program->{'videoProperties'}) {
+	    return undef;
+	}
+        elsif (ref $program->{'videoProperties'} eq 'HASH') {
+            @items = values %{$program->{'videoProperties'}};
+        }
+        else {
+            @items = @{$program->{'videoProperties'}};
+        }
+         
+	for my $item (@items) {
 		if($item =~ /hdtv/i) {
 			$video{'quality'} = 'HDTV';
 		}
