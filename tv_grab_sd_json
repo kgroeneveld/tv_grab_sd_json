@@ -1299,6 +1299,10 @@ sub get_program_video {
 	my ($program) = @_;
 	my %video;
 
+	if (! $program->{'videoProperties'}) {
+	    return undef;
+	}
+
 	for my $item (@{$program->{'videoProperties'}}) {
 		if($item =~ /hdtv/i) {
 			$video{'quality'} = 'HDTV';
